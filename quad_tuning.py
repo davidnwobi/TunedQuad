@@ -272,7 +272,9 @@ def make_tuned_matrix(
 
     # Above done once for a model problem. The tuned matrix and the parameter space are saved in a file. 
 
-def save_tuned_quad_h5(tuned_quad, model_name):
+def save_tuned_quad_h5(
+        tuned_quad: TunedQuad, 
+        model_name: str):
     """
     Save the tuned quadrature object to an h5 file. Enough data is saved to recreate the tuned quadrature object, i.e. the tuned matrix and the registered parameters.
 
