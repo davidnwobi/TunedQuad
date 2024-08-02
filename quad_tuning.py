@@ -333,7 +333,7 @@ def load_tuned_quad_h5(
             reg_params[k] = np.array(file["reg_params"][k][:]) 
         tuned_mat = np.array(file["tuned_mat"][:])
         
-        tuned_quad = tuned_quad_init(reg_params, tuned_mat)
+        tuned_quad = tuned_quad_init(reg_params, tuned_mat, kronrod_points_dict)
 
     return tuned_quad     
       
@@ -353,18 +353,6 @@ def smooth_matrix(
     filter_sigma : `float`
         The standard deviation of the gaussian filter. This controls the amount of smoothing applied to the matrix.
     """
-
-
-    # NOTE: This can be done with a convolution. 
-    # The idea is to smooth the matrix to reduce the number of kronrod points needed to achieve a certain tolerance
-    # The smoothing is done by averaging the number of kronrod points in the neighbourhood of a point.
-    # This is done by convolving the matrix with a kernel. The kernel is a 3x3 matrix with 1s in all the elements.
-    # The matrix is then divided by the sum of the kernel to get the average number of kronrod points in the neighbourhood.
-    # The matrix is then thresholded to get the final matrix. 
-    # The threshold is the maximum number of kronrod points that can be used to integrate the function.
-    # The threshold is set to the maximum number of kronrod points in the matrix.
-    # The threshold is applied to the matrix to get the final matrix. 
-    # The final matrix is then used to create the tuned quadrature object.
 
     
     tuned_quad_matrix = gaussian_filter(tuned_quad_matrix, sigma=filter_sigma, mode='nearest')
@@ -471,7 +459,7 @@ def tune(
 
         tuned_quad_matrix = tuned_quad_matrix.flatten()
 
-        tuned_quad = tuned_quad_init(registered_parameters, tuned_quad_matrix)
+        tuned_quad = tuned_quad_init(registered_parameters, tuned_quad_matrix, kronrod_points_dict)
         file.close()
 
         save_tuned_quad_h5(tuned_quad, model_name)
