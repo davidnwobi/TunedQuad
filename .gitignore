@@ -169,3 +169,6 @@ tuned_quad_csv_galore/
 old_pkl_models/
 error_behaviour/
 *.h5
+*.html
+*.csv
+*.zip
