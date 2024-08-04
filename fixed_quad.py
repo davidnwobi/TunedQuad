@@ -61,8 +61,8 @@ def fixed_quad_init(n, kronrod_points):
     """
     # kronrod_points = kronrod_points_dict
     if n in kronrod_points:
-        x =  kronrod_points[n][0][1:-1:2].copy().astype(np.float64) # numba requires contiguous arrays
-        w =  kronrod_points[n][2][1:-1:2].copy().astype(np.float64)
+        x = kronrod_points[n][0][1:-1:2].copy().astype(np.float64) # numba requires contiguous arrays
+        w = kronrod_points[n][2][1:-1:2].copy().astype(np.float64)
         return FixedQuad(x, w)
     else:
         raise ValueError(f"n = {n} not found in Kronrod points.")

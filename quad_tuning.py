@@ -73,7 +73,6 @@ def compute_tuned_quad_dict(
     b: int, 
     reg_params: tp.Dict[str, np.ndarray],
     param_prod: tp.List[tp.Tuple[np.float64]],
-    rtol: np.float64,
     n_kronrod: npt.NDArray[np.int64],
     kronrod_points_dict : tp.Dict[int, tp.Tuple[np.ndarray, np.ndarray, np.ndarray]])->tp.Dict[tp.Tuple[np.float64], np.int64]:
 
@@ -118,6 +117,7 @@ def compute_tuned_quad_dict(
             params[key] = float(param[j])
 
         rel_err = 0.0
+        rtol = params["rtol"]
         # Find the minimum n such that the relative error is less than the tolerance
         for i, n in enumerate(n_kronrod):
             rel_err = rel_error_kronrod(n, func, a,b, params, kronrod_points_dict)
@@ -145,8 +145,7 @@ def tune_quadrature(
         func: tp.Callable[[np.float64, tp.Dict[str, np.float64]], np.float64],
         a: int,
         b: int,
-        reg_params: tp.Dict[str, np.ndarray], 
-        tol: np.float64,
+        reg_params: tp.Dict[str, np.ndarray],
         n_kronrod: npt.NDArray[np.int64]) -> tp.Dict[tp.Tuple[np.float64], np.int64]:
     
     """
@@ -173,8 +172,7 @@ def tune_quadrature(
         a=a, 
         b=b, 
         reg_params=reg_params, 
-        param_prod=param_prod, 
-        rtol=tol,
+        param_prod=param_prod,
         n_kronrod=n_kronrod, 
         kronrod_points_dict=kronrod_points_dict)
 
@@ -302,6 +300,7 @@ def save_tuned_quad_h5(
         for k, v in tuned_quad.reg_params.items():
             reg_params.create_dataset(k, data=v, dtype=np.float64)
 
+        model.create_dataset("params_order", data=list(tuned_quad.reg_params.keys()), dtype=h5py.special_dtype(vlen=str))
 
 
 def load_tuned_quad_h5(
@@ -329,8 +328,9 @@ def load_tuned_quad_h5(
         
         file = f[model_name]
         reg_params = Dict.empty(*RegisteredParametersDictType) # in a sane world, this would be just dict()
-        for k in file["reg_params"]:
-            reg_params[k] = np.array(file["reg_params"][k][:]) 
+        params_order = file["params_order"][:]
+        for k in params_order:
+            reg_params[str(k.decode('ascii'))] = np.array(file["reg_params"][k][:])
         tuned_mat = np.array(file["tuned_mat"][:])
         
         tuned_quad = tuned_quad_init(reg_params, tuned_mat, kronrod_points_dict)
@@ -354,8 +354,12 @@ def smooth_matrix(
         The standard deviation of the gaussian filter. This controls the amount of smoothing applied to the matrix.
     """
 
-    
-    tuned_quad_matrix = gaussian_filter(tuned_quad_matrix, sigma=filter_sigma, mode='nearest')
+    tuned_quad_matrix_smoothed = np.empty_like(tuned_quad_matrix)
+    for i in range(tuned_quad_matrix.shape[0]):
+        tuned_quad_matrix_smoothed[i] = gaussian_filter(tuned_quad_matrix[i], sigma=filter_sigma, mode='nearest')
+
+    tuned_quad_matrix = tuned_quad_matrix_smoothed
+    # tuned_quad_matrix = gaussian_filter(tuned_quad_matrix, sigma=filter_sigma, mode='nearest')
     # for j in range(1, z_smooth.shape[1]):
     #     z_smooth[:, j] = np.maximum(z_smooth[:, j], z_smooth[:, j-1])
     # for i in range(1, z_smooth.shape[0]):
@@ -368,26 +372,21 @@ def smooth_matrix(
     # That's all that's happening below
         
     all_kron_p = sorted(kronrod_points_dict.keys())
+    print("All Kronrod points", all_kron_p)
+    og_shape = tuned_quad_matrix.shape
+    tuned_quad_matrix = tuned_quad_matrix.flatten()
 
-    prev = np.nan
-    prev_nearest = np.nan
-    for i in range(tuned_quad_matrix.shape[0]):
-        for j in range(tuned_quad_matrix.shape[1]):
-            target = tuned_quad_matrix[i, j]
+    for i in range(len(tuned_quad_matrix)):
+        target = tuned_quad_matrix[i]
+        # print("Target", target)
+        nearest_greater = np.searchsorted(all_kron_p, target)
+        # print("Nearest greater", nearest_greater)
+        if nearest_greater == len(all_kron_p):
+            nearest_greater -= 1
+        # print("All Kronrod points[nearest_greater]", all_kron_p[nearest_greater])
+        tuned_quad_matrix[i] = all_kron_p[nearest_greater]
 
-            if target == prev:
-                tuned_quad_matrix[i, j] = prev_nearest
-                continue
-
-            nearest_greater = np.searchsorted(all_kron_p, target)
-            if nearest_greater == len(all_kron_p):
-                nearest_greater -= 1
-
-            prev = target
-            prev_nearest = all_kron_p[nearest_greater]
-
-            tuned_quad_matrix[i, j] = all_kron_p[nearest_greater]
-
+    tuned_quad_matrix = tuned_quad_matrix.reshape(og_shape)
     return tuned_quad_matrix
 
 
@@ -397,7 +396,7 @@ def tune(
         a: int,
         b: int,
         registered_parameters: tp.Dict[str, np.ndarray], 
-        tol: np.float64,
+        tol: npt.NDArray[np.float64], # tol needs to be wrapped in an array to be used in numba
         n_kronrod: npt.NDArray[np.int64],
         update=False):
     
@@ -438,8 +437,6 @@ def tune(
 
     """
 
-
-
     # print("Tuning quadrature for ", model_name)
     file = h5py.File(tuned_quad_model_loc, "a")
     if not model_name in file or update:
@@ -447,8 +444,16 @@ def tune(
             del file[model_name]
 
         print(f"Computing tuned quadrature for {model_name}")
-        tuned_quad_dict = tune_quadrature(integrand, a, b, registered_parameters, tol, n_kronrod=n_kronrod)
-        tuned_quad_matrix = make_tuned_matrix(tuned_quad_dict, registered_parameters)
+
+        reg_params_rtol = Dict.empty(*RegisteredParametersDictType)
+
+        # add the relative error tolerance to the registered parameters
+        reg_params_rtol["rtol"] = tol
+        for k, v in registered_parameters.items():
+            reg_params_rtol[k] = v
+
+        tuned_quad_dict = tune_quadrature(integrand, a, b, reg_params_rtol,n_kronrod=n_kronrod)
+        tuned_quad_matrix = make_tuned_matrix(tuned_quad_dict, reg_params_rtol)
         print(f"Tuned matrix for {model_name}, unsmoothed")
         print(tuned_quad_matrix)
 
@@ -459,7 +464,7 @@ def tune(
 
         tuned_quad_matrix = tuned_quad_matrix.flatten()
 
-        tuned_quad = tuned_quad_init(registered_parameters, tuned_quad_matrix, kronrod_points_dict)
+        tuned_quad = tuned_quad_init(reg_params_rtol, tuned_quad_matrix, kronrod_points_dict)
         file.close()
 
         save_tuned_quad_h5(tuned_quad, model_name)
