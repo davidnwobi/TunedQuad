@@ -170,3 +170,4 @@ old_pkl_models/
 error_behaviour/
 *.h5
 *.png
+*.json
