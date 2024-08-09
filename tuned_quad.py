@@ -45,6 +45,12 @@ They would be however if the function were not compiled with numba and simply ru
 
 TunedQuad = tp.NamedTuple("TunedQuad", [("reg_params", tp.Dict[str, np.float64]), ("tuned_mat", npt.NDArray[np.int32]), ("quad_cache", tp.Dict[int, FixedQuad]), ("dims", np.ndarray)])
 
+# evaluate my function
+#   clamp the values to the corners of the parameter space then evaluate the function
+#   get the number of Kronrod points
+# get the arrays with points and weights
+#   read the arrays from a dictionary
+# call an integration function with the arrays
 
 @njit
 def tuned_quad_init(

@@ -34,4 +34,6 @@ with h5py.File("kronrod.h5", "r") as f:
 for n in all_kron_p:
     x, w, wg = get_kronrod_h5(n)
     kronrod_points_dict[n] = (x, w, wg)
+
+
         
