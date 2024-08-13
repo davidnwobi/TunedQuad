@@ -90,7 +90,8 @@ def integrate_from_model(model_name, func, a, b, params=()):
     intercept = model.intercept
 
     params_log2 = np.log2(np.array(params, dtype=np.float64))
-    n = int(eval_poly(params_log2, pol_deg=poly_degree, coeffs=coeffs, intercept=intercept))+1
+    expo = int(eval_poly(params_log2, pol_deg=poly_degree, coeffs=coeffs, intercept=intercept))+1
+    n = 2**(max(1,min(15, expo)))
     print(n)
     xg, wg = get_kronrod(n)
     return _integrate(xg, wg, func, a, b, params)

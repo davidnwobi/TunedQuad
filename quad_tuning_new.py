@@ -10,14 +10,15 @@ from sklearn.pipeline import make_pipeline
 import typing as tp
 import numpy as np
 import os
-
+import plotly.graph_objects as go
+from c_code_generation import generate_polynomial_function_c, generate_integration
 """
 Types specifed below are not exactly the ones used. They are just placeholders to show the structure of the types used in the functions.
 They would be however if the function were not compiled with numba and simply run in python. The actual types will be mentioned in the docstrings.
 """
 
 
-n_kronrod = np.power(2, np.arange(1, 10))
+n_kronrod = np.power(2, np.arange(1, 16))
 
 def rel_error_kronrod(
     n: int,
@@ -98,7 +99,7 @@ def tune_quadrature(
     """
     
     param_prod = list(product(*reg_params_list))
-
+    print([len(p) for p in reg_params_list])
     return compute_tuned_quad_dict(
         func=func, 
         a=a, 
@@ -125,6 +126,28 @@ intercept  = {intercept}
 
     with open(py_file_name, "w") as f:
         f.write(py_script)
+        
+def save_model_c_file(model_name: str, param_names, poly_degree, coeffs, intercept):
+    
+    c_file_name = model_name + "_model.c"
+
+    c_script = f'''
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "kron.h"
+
+const double coeffs[] = {{{", ".join(map(str, coeffs))}}};
+const double intercept = {intercept};
+
+'''
+
+    c_script += generate_polynomial_function_c(len(param_names), poly_degree)
+    c_script += generate_integration(param_names)
+    
+    with open(c_file_name, "w") as f:
+        f.write(c_script)
+
 
 def get_shift(pred, orig, threshold=.99):
     '''
@@ -137,6 +160,7 @@ def get_shift(pred, orig, threshold=.99):
     r = pred.max()-orig.min() # unless there is some weird edge case, this should be positive and a sufficient starting point
     eps = 1e-6
     while(abs(l-r) > eps): # probably not the best way to do this but I know binary search works
+        print(l, r)
         m = (l+r)/2
         if percentage_greater(pred+m):
             r = m
@@ -145,7 +169,7 @@ def get_shift(pred, orig, threshold=.99):
     return l
 
 
-def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, threshold=.99) -> tp.Tuple[int, int, np.ndarray, np.float64]:
+def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, threshold=.999) -> tp.Tuple[int, int, np.ndarray, np.float64]:
     '''
     Fit a polynomial to the tuned quadrature dictionary.
     
@@ -163,19 +187,35 @@ def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, t
         raise ValueError("Number of variables is greater than polynomial degree")
     
     # Fit an n-dimennsional polynomial to the tuned matrix
-    features = np.vstack(np.array([np.array(k) for k in tuned_quad_dict.keys()]))
-    values = np.array(list(tuned_quad_dict.values()))
+    features = np.vstack(np.array([np.log2(np.array(k)) for k in tuned_quad_dict.keys()])) # log2 of the parameters
+    values = np.log2(np.array(list(tuned_quad_dict.values())))
+    
+    
 
     model = make_pipeline(PolynomialFeatures(degree), LinearRegression())
     model.fit(features, values)
     prediction = model.predict(features)
 
+    
     # Get the shift needed to make the predicted values greater than the original values (threshold)% of the time.
     shift = get_shift(prediction, values, threshold)
-
     coeff = model.named_steps['linearregression'].coef_
     intercept = model.named_steps['linearregression'].intercept_+shift
-
+    
+    if n_params == 2:
+        x = features[:, 0]
+        y = features[:, 1]
+        z = values.reshape((int(np.sqrt(len(values))), int(np.sqrt(len(values)))))
+        fig = go.Figure()
+        fig = go.Figure(data=[go.Surface(z=z, colorscale='Viridis')])
+        
+        shifted_prediction = prediction+shift
+        shifted_prediction = np.array([(max(1,min(15, int(p)))) for p in shifted_prediction])
+        shifted_prediction = shifted_prediction.reshape((int(np.sqrt(len(values))), int(np.sqrt(len(values)))))
+        
+        fig.add_trace(go.Surface(z=shifted_prediction, colorscale='Turbo', opacity=0.6))
+        fig.update_geos(projection_type="orthographic")
+        fig.show()
     return n_params, degree, coeff, intercept
 
 
@@ -184,6 +224,7 @@ def fit_model(
         integrand,
         a: int,
         b: int,
+        param_names: tp.List[str],
         reg_param_list: tp.List[np.ndarray], 
         tol: np.float64,
         degree: tp.Optional[int] = None,
@@ -197,3 +238,4 @@ def fit_model(
         tuned_quad_dict = tune_quadrature(integrand, a, b, reg_param_list, tol)
         n_params, degree, coeffs, intercept = fit_dict(tuned_quad_dict, degree)
         save_model_py_file(model_name, n_params, degree, coeffs, intercept)
+        save_model_c_file(model_name, param_names, degree, coeffs, intercept)

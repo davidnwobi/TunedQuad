@@ -1,6 +1,5 @@
-from kronrod import get_kronrod_h5
-
-upper_bound  = 9
+import numpy as np
+upper_bound  = 15
 py_file = '''
 
 import numpy as np
@@ -15,7 +14,10 @@ __all__ = ["get_kronrod, get_kronrod_w_higher_order"]
 '''
 
 for i in range(1, upper_bound+1):
-    xk, wk, wg = get_kronrod_h5(2**i)
+    xk, wk, wg = np.loadtxt(f"{2**i}_mp.txt", unpack=True)
+    xk = np.concatenate([-xk[:-1], xk[::-1]] )
+    wk = np.concatenate([wk[:-1], wk[::-1]] )
+    wg = np.concatenate([wg[:-1], wg[::-1]] )
     xg = xk[1:-1:2]
     wg = wg[1:-1:2]
     py_file += f'''

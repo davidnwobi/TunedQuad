@@ -62,6 +62,7 @@ while(abs(l-r) > eps): # probably not the best way to do this but I know binary 
         r = m
     else:
         l = m
+print(l, r)
 kronrod_pred+=l
 
 def next_power_of_2(n):

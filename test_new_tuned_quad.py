@@ -16,12 +16,12 @@ def J1x_nb(x):
     return np.where(x != 0, j1(x)/x, 0.5)
 
 def integrand_2param(
-    x, A, B):
+    x, A, B, C, D):
 
     return (np.sinc(A * np.cos(x)/np.pi) * J1x_nb(B * np.sin(x)))**2*np.sin(x)
 
-reg_params2 = [np.geomspace(1, 1000, 15), np.geomspace(1, 1000, 15)]
+reg_params2 = [np.geomspace(1, 1000000, 6), np.geomspace(1, 1000000, 6), np.geomspace(1, 1000000, 6), np.geomspace(1, 1000000, 6)]
+params_names = ["A", "B", "C", "D"]
+fit_model("cylinder_small", integrand_2param, a, b, params_names, reg_params2, 1e-5, update=True)
 
-fit_model("cylinder_small", integrand_2param, a, b, reg_params2, 1e-5)
-
-integrate_from_model("cylinder_small", integrand_2param, a, b, (1, 1))
+integrate_from_model("cylinder_small", integrand_2param, a, b, (1000000, 100000))
