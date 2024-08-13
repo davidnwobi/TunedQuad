@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 from itertools import product
-from kron import get_kronrod_w_higher_order
+from kron import get_gauss_kronrod_points
 from tuned_quad_new import _integrate
 import typing as tp
 from sklearn.preprocessing import PolynomialFeatures
@@ -11,7 +11,8 @@ import typing as tp
 import numpy as np
 import os
 import plotly.graph_objects as go
-from c_code_generation import generate_polynomial_function_c, generate_integration
+from c_code_generation import generate_polynomial_function_c, generate_integration_c
+from py_code_generation import generate_polynomial_function_py, generate_integration_py
 """
 Types specifed below are not exactly the ones used. They are just placeholders to show the structure of the types used in the functions.
 They would be however if the function were not compiled with numba and simply run in python. The actual types will be mentioned in the docstrings.
@@ -22,15 +23,19 @@ n_kronrod = np.power(2, np.arange(1, 16))
 
 def rel_error_kronrod(
     n: int,
-    func: tp.Callable[[np.float64, tp.Dict[str, np.float64]], np.float64],
+    func: tp.Callable[[np.float64, tp.Tuple[np.float64, ...]], np.float64],
     a: np.float64,
     b: np.float64,
     params: tp.Tuple[np.float64])->np.float64:
 
-    xg, wg, xk, wk = get_kronrod_w_higher_order(n)
+    xg, wg, xk, wk = get_gauss_kronrod_points(n)
 
-    sol_h = _integrate(xk, wk, func, a, b, params)
-    sol_l = _integrate(xg, wg, func, a, b, params)
+    def integrate(points,weights)->np.float64:
+        y = (b-a)*(points+1)/2.0 + a
+        return (b-a)/2.0 * np.sum(weights*func(y, *params), axis=-1)
+
+    sol_h = integrate(xk, wk)
+    sol_l = integrate(xg, wg)
     return np.abs((sol_h-sol_l)/sol_h)
 
 def compute_tuned_quad_dict(
@@ -41,10 +46,6 @@ def compute_tuned_quad_dict(
     rtol: np.float64)->tp.Dict[tp.Tuple[np.float64], np.int64]:
 
 
-
-    # NOTE: Alternatively you could have used mesh grid to get the parameter combinations.
-    # then a matrix of the same shape as the mesh grid would be created to store the tuned quadrature points.
-    # But this is easier to understand would prevent need to fill a matrix later but would be very inefficient for large parameter spaces.
 
     
     tuned_quad = dict() # Specify the type for this
@@ -108,47 +109,6 @@ def tune_quadrature(
         rtol=tol)
 
 
-def save_model_py_file(model_name: str, n_params, poly_degree, coeffs, intercept):
-
-    py_file_name = model_name + "_model.py"
-
-    py_script = f"""
-
-import numpy as np
-
-__all__ = ["model_name", "n_params", "poly_degree", "coeffs", "intercept"]
-model_name = "{model_name}"
-n_params = {n_params}
-poly_degree = {poly_degree}
-coeffs = {np.array(np.array2string(coeffs, separator=",", precision=10))}
-intercept  = {intercept}
-"""
-
-    with open(py_file_name, "w") as f:
-        f.write(py_script)
-        
-def save_model_c_file(model_name: str, param_names, poly_degree, coeffs, intercept):
-    
-    c_file_name = model_name + "_model.c"
-
-    c_script = f'''
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include "kron.h"
-
-const double coeffs[] = {{{", ".join(map(str, coeffs))}}};
-const double intercept = {intercept};
-
-'''
-
-    c_script += generate_polynomial_function_c(len(param_names), poly_degree)
-    c_script += generate_integration(param_names)
-    
-    with open(c_file_name, "w") as f:
-        f.write(c_script)
-
-
 def get_shift(pred, orig, threshold=.99):
     '''
     Get the shift needed to make the predicted values greater than the original values (threshold)% of the time.
@@ -202,6 +162,7 @@ def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, t
     coeff = model.named_steps['linearregression'].coef_
     intercept = model.named_steps['linearregression'].intercept_+shift
     
+    # Look at the parameter space
     if n_params == 2:
         x = features[:, 0]
         y = features[:, 1]
@@ -219,6 +180,50 @@ def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, t
     return n_params, degree, coeff, intercept
 
 
+def save_model_py_file(model_name: str, param_names, poly_degree, coeffs, intercept):
+
+    py_file_name = model_name + "_model.py"
+
+    py_script = f"""
+
+import numpy as np
+import typing as tp
+from collections.abc import Sequence
+from kron import get_gauss_points
+
+__all__ = ["integrate"]
+coeffs = {np.array(np.array2string(coeffs, separator=",", precision=10))}
+intercept  = {intercept}
+
+"""
+    py_script += generate_polynomial_function_py(len(param_names), poly_degree)
+    py_script += generate_integration_py(param_names)
+
+    with open(py_file_name, "w") as f:
+        f.write(py_script)
+        
+def save_model_c_file(model_name: str, param_names, poly_degree, coeffs, intercept):
+    
+    c_file_name = model_name + "_model.c"
+
+    c_script = f'''
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "kron.h"
+
+const double coeffs[] = {{{", ".join(map(str, coeffs))}}};
+const double intercept = {intercept};
+
+'''
+
+    c_script += generate_polynomial_function_c(len(param_names), poly_degree)
+    c_script += generate_integration_c(param_names)
+    
+    with open(c_file_name, "w") as f:
+        f.write(c_script)
+
+
 def fit_model(
         model_name: str, 
         integrand,
@@ -234,8 +239,8 @@ def fit_model(
     file_name = f'{model_name}_model.py'
     if not os.path.exists(file_name) or update:
         if degree is None:
-            degree = len(reg_param_list)
+            degree = len(reg_param_list)+1
         tuned_quad_dict = tune_quadrature(integrand, a, b, reg_param_list, tol)
         n_params, degree, coeffs, intercept = fit_dict(tuned_quad_dict, degree)
-        save_model_py_file(model_name, n_params, degree, coeffs, intercept)
+        save_model_py_file(model_name, param_names, degree, coeffs, intercept)
         save_model_c_file(model_name, param_names, degree, coeffs, intercept)

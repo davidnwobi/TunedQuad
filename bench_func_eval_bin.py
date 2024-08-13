@@ -22,8 +22,8 @@ rng = np.random.default_rng(42)
 param_space_size = 15
 
 
-n_params = 2
-degree = n_params
+n_params = 3
+degree = n_params+1
 coeff_size = comb(degree+n_params, degree)
 
 param_space = np.geomspace(1, 1000000, param_space_size)

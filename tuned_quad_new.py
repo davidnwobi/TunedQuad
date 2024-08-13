@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.special import comb
-from kron import get_kronrod, get_kronrod_w_higher_order
 import importlib
 
 
@@ -68,30 +67,7 @@ def eval_poly(var_val, pol_deg, coeffs, intercept):
             
     return res + intercept
 
-def _integrate(
-        points,
-        weights,       
-        func,
-        a: np.float64,
-        b: np.float64,
-        params=(),
-        )->np.float64:
-
-    y = (b-a)*(points+1)/2.0 + a
-    return (b-a)/2.0 * np.sum(weights*func(y, *params), axis=-1)
-
 
 def integrate_from_model(model_name, func, a, b, params=()):
-    model_file = model_name + "_model.py"
-    model = importlib.import_module(model_file[:-3])
-
-    poly_degree = model.poly_degree
-    coeffs = model.coeffs
-    intercept = model.intercept
-
-    params_log2 = np.log2(np.array(params, dtype=np.float64))
-    expo = int(eval_poly(params_log2, pol_deg=poly_degree, coeffs=coeffs, intercept=intercept))+1
-    n = 2**(max(1,min(15, expo)))
-    print(n)
-    xg, wg = get_kronrod(n)
-    return _integrate(xg, wg, func, a, b, params)
+    model = importlib.import_module(model_name)
+    return model.integrate(func, a, b, params)

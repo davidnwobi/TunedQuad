@@ -22,7 +22,7 @@ def generate_polynomial_function_c(n, k):
                 coeff_counter += 1
                 terms += f' + {term}'
 
-    v = [f'const double var{i}' for i in range(n)]
+    v = [f'double var{i}' for i in range(n)]
     vars = ', '.join(v)
     func = f'''
         
@@ -34,7 +34,7 @@ double eval_poly({vars}){{
     return func
 
 
-def generate_integration(param_names):
+def generate_integration_c(param_names):
     func = f'''
 
 const int lb = 1;
