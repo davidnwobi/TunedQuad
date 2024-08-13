@@ -34,7 +34,7 @@ double eval_poly({vars}){{
     return func
 
 
-def generate_integration_c(param_names):
+def generate_integration_c(param_names, limits):
     func = f'''
 
 const int lb = 1;
@@ -57,6 +57,39 @@ double integrate(Integrand f, double a, double b, {', '.join(f'double {name}' fo
     double sum = 0;
     for (int i = 0; i < n; i++){{
         sum += f(a + (b - a) * 0.5 * (xg[i] + 1), {', '.join(name for name in param_names)}) * wg[i];
+    }}
+    sum *= (b - a) * 0.5;
+    return sum;
+    '''
+    
+    func += f'''
+}}'''
+
+    return func
+
+def generate_integration_rtol_default_c(param_names, limits):
+    func = f'''
+
+const int lb = 1;
+const int ub = 15;
+typedef double (*Integrand)(double x, {', '.join(f'double {name}' for name in param_names[1:])});
+''' 
+
+    func += f'''
+double integrate(Integrand f, double a, double b, {', '.join(f'double {name}' for name in param_names)}){{\n\n'''
+    
+    func += f'''
+    // Determine the number of points for the Gauss quadrature
+    int expo = (int)(eval_poly({', '.join(f'log2(max(limits[{i}][0],min(limits[{i}][1], {name})))' for i,name in enumerate(param_names))}) + 1);
+    int n = (int)(pow(2, max(lb, min(ub, expo))));
+    
+    double *xg, *wg;
+    get_gauss_points(n, &xg, &wg);
+    
+    // Perform the integration
+    double sum = 0;
+    for (int i = 0; i < n; i++){{
+        sum += f(a + (b - a) * 0.5 * (xg[i] + 1), {', '.join(name for name in param_names[1:])}) * wg[i];
     }}
     sum *= (b - a) * 0.5;
     return sum;

@@ -37,11 +37,32 @@ ub: int = 15
 
 def integrate(f: tp.Callable[[float, tp.Tuple[float, ...]], float], a: float, b: float, params: tp.Tuple[float, ...] = ()) -> float:
 
-    expo = int(eval_poly([np.log2(param) for param in params]) + 1)   
+    expo = int(eval_poly([np.log2(max(limit[0], min(limit[1],param))) for limit, param in zip(limits,params)]) + 1)   
     n = int(pow(2, max(lb, min(ub, expo))))
 
     xg, wg = get_gauss_points(n)
 
+    y = (b-a)*(xg+1)/2 + a
+    return (b-a)/2 * np.sum(wg*f(y, *params))
+    '''
+
+    return func
+
+def generate_integration_rtol_default_py(param_names):
+    func = f'''
+
+lb: int = 1
+ub: int = 15
+
+def integrate(f: tp.Callable[[float, tp.Tuple[float, ...]], float], a: float, b: float, params: tp.Tuple[float, ...] = ()) -> float:
+
+    expo = int(eval_poly([np.log2(max(limit[0], min(limit[1],param))) for limit, param in zip(limits,params)]) + 1) 
+    n = int(pow(2, max(lb, min(ub, expo))))
+
+    xg, wg = get_gauss_points(n)
+
+    if len(params) > 1:
+        params = params[1:]
     y = (b-a)*(xg+1)/2 + a
     return (b-a)/2 * np.sum(wg*f(y, *params))
     '''

@@ -14,13 +14,12 @@ When B is 0, the solution to the integral is (0.25 C^2 (-1. Sin[A]^2 + A SinInte
 
 import numpy as np
 import scipy.special as sp
-from quad_tuning import load_tuned_quad_h5
 from numba import vectorize, njit, float64
 from numba.typed import Dict
-from tuned_quad import tuned_quad_integrate, ParametersDictType # won't work after I update tuned_quad.py
 from j1 import j1
 import pandas as pd
 from scipy.integrate import fixed_quad
+from tuned_quad_new import integrate_from_model
 
 a = 0
 b = np.pi / 2
@@ -59,9 +58,6 @@ def integrand_2param_py(
 ):
     return (np.sinc(A * np.cos(x) / np.pi) * J1x_nb(B * np.sin(x))) ** 2 * np.sin(x)
 
-
-cylinder_accurate_quad = load_tuned_quad_h5("cylinder_accurate")
-
 A = 0
 B = 10
 rtol = 1e-4
@@ -70,12 +66,8 @@ result_dict = {}
 for rtol in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
     for A in [0]:
         for B in [10, 100, 1000, 10000, 100000, 1000000]:
-            params = Dict.empty(*ParametersDictType)
-            params["rtol"] = rtol
-            params["A"] = A
-            params["B"] = B
 
-            result_numerical = tuned_quad_integrate(cylinder_accurate_quad, integrand_2param, a, b, params)
+            result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (rtol, A, B))
             result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
             result_analytical = integral_a0(B)
             result_dict[(A, B, rtol)] = (
@@ -86,12 +78,9 @@ for rtol in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
 for rtol in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
     for B in [0]:
         for A in [10, 100, 1000, 10000, 100000, 1000000]:
-            params = Dict.empty(*ParametersDictType)
-            params["rtol"] = rtol
-            params["A"] = A
-            params["B"] = B
 
-            result_numerical = tuned_quad_integrate(cylinder_accurate_quad, integrand_2param, a, b, params)
+
+            result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (rtol, A, B))
             result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
             result_analytical = integral_b0(A)
 
