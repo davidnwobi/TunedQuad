@@ -4,14 +4,14 @@
 #include <math.h>
 #include "kron.h"
 
-const double coeffs[] = {0.0, 0.31043359933842984, 0.47157543384234224, -0.05768308107386915, 0.05773728571017609, -0.014412745461281792, -0.02993018039503277, -0.010529071534583826, -0.03301410517237654, 0.05419882724359467, 0.0025460451075696444, 0.00044166088600665126, 0.0006235212508331179, -0.0005022810076154822, 0.002279316572490046, 0.0011431222931939857, 2.6942276270633497e-05, 0.0006119745610029953, 0.0007736282186263793, -0.0014548829186104562};
-const double intercept = 2.0765714285718566;
-const double limits[][2] = {{1e-05, 0.1}, {1.0, 1000000.0}, {1.0, 1000000.0}};
+const double coeffs[] = {-50.32474089283958, -1427824.1774757393, -343263.1848687853, 817848.1078012217, 0.007365850044950771, 196619.00371076705, -168474.0660522161, -0.013319499069662196, -0.023880550140073252, -40502.862084472596, 15966.067211021598, 0.0018660057200263651, -0.0004002928628653257, 0.0034865832284832732, 3838.402571070239, -706.8036707316887, -5.1935075537054696e-05, -3.294412817922421e-05, 7.886090315878391e-06, -0.00016372041136492044, -169.92267053519754, 11.820505730807781, -3.166496753692627e-07, 3.0610826797783375e-06, -2.835469786077738e-06, 1.8181162886321545e-06, 2.311950083822012e-06, 2.841767642297782};
+const double intercept = 52.28994722995493;
+const double limits[][2] = {{1.0, 1000000.0}, {1.0, 1000000.0}};
 
 
         
-double eval_poly(double var0, double var1, double var2){
-    return 1 * coeffs[0] + var0 * coeffs[1] + var1 * coeffs[2] + var2 * coeffs[3] + (var0 * var0) * coeffs[4] + var0 * var1 * coeffs[5] + var0 * var2 * coeffs[6] + (var1 * var1) * coeffs[7] + var1 * var2 * coeffs[8] + (var2 * var2) * coeffs[9] + (var0 * var0 * var0) * coeffs[10] + (var0 * var0) * var1 * coeffs[11] + (var0 * var0) * var2 * coeffs[12] + var0 * (var1 * var1) * coeffs[13] + var0 * var1 * var2 * coeffs[14] + var0 * (var2 * var2) * coeffs[15] + (var1 * var1 * var1) * coeffs[16] + (var1 * var1) * var2 * coeffs[17] + var1 * (var2 * var2) * coeffs[18] + (var2 * var2 * var2) * coeffs[19] + intercept;
+double eval_poly(double var0, double var1){
+    return 1 * coeffs[0] + var0 * coeffs[1] + var1 * coeffs[2] + (var0 * var0) * coeffs[3] + var0 * var1 * coeffs[4] + (var1 * var1) * coeffs[5] + (var0 * var0 * var0) * coeffs[6] + (var0 * var0) * var1 * coeffs[7] + var0 * (var1 * var1) * coeffs[8] + (var1 * var1 * var1) * coeffs[9] + (var0 * var0 * var0 * var0) * coeffs[10] + (var0 * var0 * var0) * var1 * coeffs[11] + (var0 * var0) * (var1 * var1) * coeffs[12] + var0 * (var1 * var1 * var1) * coeffs[13] + (var1 * var1 * var1 * var1) * coeffs[14] + (var0 * var0 * var0 * var0 * var0) * coeffs[15] + (var0 * var0 * var0 * var0) * var1 * coeffs[16] + (var0 * var0 * var0) * (var1 * var1) * coeffs[17] + (var0 * var0) * (var1 * var1 * var1) * coeffs[18] + var0 * (var1 * var1 * var1 * var1) * coeffs[19] + (var1 * var1 * var1 * var1 * var1) * coeffs[20] + (var0 * var0 * var0 * var0 * var0 * var0) * coeffs[21] + (var0 * var0 * var0 * var0 * var0) * var1 * coeffs[22] + (var0 * var0 * var0 * var0) * (var1 * var1) * coeffs[23] + (var0 * var0 * var0) * (var1 * var1 * var1) * coeffs[24] + (var0 * var0) * (var1 * var1 * var1 * var1) * coeffs[25] + var0 * (var1 * var1 * var1 * var1 * var1) * coeffs[26] + (var1 * var1 * var1 * var1 * var1 * var1) * coeffs[27] + intercept;
 }
     
 
@@ -19,11 +19,11 @@ const int lb = 1;
 const int ub = 15;
 typedef double (*Integrand)(double x, double A, double B);
 
-double integrate(Integrand f, double a, double b, double rtol, double A, double B){
+double integrate(Integrand f, double a, double b, double A, double B){
 
 
     // Determine the number of points for the Gauss quadrature
-    int expo = (int)(eval_poly(log2(max(limits[0][0],min(limits[0][1], rtol))), log2(max(limits[1][0],min(limits[1][1], A))), log2(max(limits[2][0],min(limits[2][1], B)))) + 1);
+    int expo = (int)(eval_poly(log2(A), log2(B)) + 1);
     int n = (int)(pow(2, max(lb, min(ub, expo))));
     
     double *xg, *wg;

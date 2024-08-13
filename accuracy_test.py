@@ -19,7 +19,7 @@ from numba.typed import Dict
 from j1 import j1
 import pandas as pd
 from scipy.integrate import fixed_quad
-from tuned_quad_new import integrate_from_model
+from fit_integrate import integrate_from_model
 
 a = 0
 b = np.pi / 2
@@ -60,36 +60,34 @@ def integrand_2param_py(
 
 A = 0
 B = 10
-rtol = 1e-4
 
 result_dict = {}
-for rtol in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
-    for A in [0]:
-        for B in [10, 100, 1000, 10000, 100000, 1000000]:
 
-            result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (rtol, A, B))
-            result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
-            result_analytical = integral_a0(B)
-            result_dict[(A, B, rtol)] = (
-                result_numerical, result_analytical, abs((result_numerical - result_analytical) / result_analytical), result_numerical_quad_76, abs((result_numerical_quad_76 - result_analytical) / result_analytical))
-            print(
-                f"Result for A={A}, B={B}, rtol={rtol}: Numerical: {result_numerical}, Analytical: {result_analytical}, Actual Relative Error: {abs((result_numerical - result_analytical) / result_analytical)}")
+for A in [0]:
+    for B in [10, 100, 1000, 10000, 100000, 1000000]:
 
-for rtol in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]:
-    for B in [0]:
-        for A in [10, 100, 1000, 10000, 100000, 1000000]:
+        result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (A, B))
+        result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
+        result_analytical = integral_a0(B)
+        result_dict[(A, B)] = (
+            result_numerical, result_analytical, abs((result_numerical - result_analytical) / result_analytical), result_numerical_quad_76, abs((result_numerical_quad_76 - result_analytical) / result_analytical))
+        print(
+            f"Result for A={A}, B={B}: Numerical: {result_numerical}, Analytical: {result_analytical}, Actual Relative Error: {abs((result_numerical - result_analytical) / result_analytical)}")
+
+for B in [0]:
+    for A in [10, 100, 1000, 10000, 100000, 1000000]:
 
 
-            result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (rtol, A, B))
-            result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
-            result_analytical = integral_b0(A)
+        result_numerical = integrate_from_model('cylinder_accurate_model', integrand_2param_py, a, b, (A, B))
+        result_numerical_quad_76 = fixed_quad(integrand_2param_py, a, b, args=(A, B), n=76)[0]
+        result_analytical = integral_b0(A)
 
-            result_dict[(A, B, rtol)] = (
-                result_numerical, result_analytical, abs((result_numerical - result_analytical) / result_analytical), result_numerical_quad_76, abs((result_numerical_quad_76 - result_analytical) / result_analytical))
-            print(
-                f"Result for A={A}, B={B}, rtol={rtol}: Numerical: {result_numerical}, Analytical: {result_analytical}, Actual Relative Error: {abs((result_numerical - result_analytical) / result_analytical)}")
+        result_dict[(A, B)] = (
+            result_numerical, result_analytical, abs((result_numerical - result_analytical) / result_analytical), result_numerical_quad_76, abs((result_numerical_quad_76 - result_analytical) / result_analytical))
+        print(
+            f"Result for A={A}, B={B}: Numerical: {result_numerical}, Analytical: {result_analytical}, Actual Relative Error: {abs((result_numerical - result_analytical) / result_analytical)}")
 
-index = pd.MultiIndex.from_tuples(result_dict.keys(), names=["A", "B", "Target Relative Error"])
+index = pd.MultiIndex.from_tuples(result_dict.keys(), names=["A", "B"])
 df = pd.DataFrame(result_dict.values(), index=index)
 df.columns = ["Numerical", "Analytical", "True Relative Error", "Numerical Quad 76", "True Relative Error Quad 76"]
 

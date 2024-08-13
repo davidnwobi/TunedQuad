@@ -30,15 +30,14 @@ for i in range(1, upper_bound+1):
     wg = wg[1:-1:2]
     c_file += f'''
 
-const double GAUSS_{2**i}_XG[] = {{{", ".join(map(str, xg))}}};
-const double GAUSS_{2**i}_WG[] = {{{", ".join(map(str, wg))}}};
+double GAUSS_{2**i}_XG[] = {{{", ".join(map(str, xg))}}};
+double GAUSS_{2**i}_WG[] = {{{", ".join(map(str, wg))}}};
 
 '''
-
-    
+   
 c_file += '''
 
-void get_gauss_points(int n, const double **xg, const double **wg){
+void get_gauss_points(int n, double **xg, double **wg){
     switch(n){
 
 '''

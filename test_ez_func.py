@@ -3,7 +3,7 @@ from pyparsing import line
 # from numba import float64, njit, vectorize
 # from j1 import j1
 from quad_tuning_new import fit_model
-from tuned_quad_new import integrate_from_model
+from fit_integrate import integrate_from_model
 
 a = 0
 b = np.pi/2
@@ -19,9 +19,9 @@ def analyt_integrand(b):
 n = 60
 
 reg_params2 = [np.geomspace(1, 100000, n)]
-params_names = ["b"]
-fit_model("ezy_func", integrand, a, b, params_names, reg_params2, np.geomspace(1e-5, 1e-1, n), update=True)
+params_names = ["B"]
+fit_model("ezy_func", integrand, a, b, params_names, reg_params2, 1e-4, update=True)
 
-print(integrate_from_model("ezy_func_model", integrand, a, b, (1e-5, 10000)))
+print(integrate_from_model("ezy_func_model", integrand, a, b, (10000,)))
 print(analyt_integrand(10000))
 

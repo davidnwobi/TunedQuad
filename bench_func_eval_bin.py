@@ -1,6 +1,6 @@
 import numpy as np
 from eval_poly import eval_poly_2_2
-from tuned_quad_new import eval_poly
+from fit_integrate import eval_poly
 from math import comb
 
 def binary_search(arr, target):

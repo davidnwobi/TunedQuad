@@ -72,7 +72,7 @@ def generate_integration_rtol_default_c(param_names, limits):
 
 const int lb = 1;
 const int ub = 15;
-typedef double (*Integrand)(double x, {', '.join(f'double {name}' for name in param_names[1:])});
+typedef double (*Integrand)(double x, {', '.join(f'double {name}' for name in param_names)});
 ''' 
 
     func += f'''
@@ -89,7 +89,7 @@ double integrate(Integrand f, double a, double b, {', '.join(f'double {name}' fo
     // Perform the integration
     double sum = 0;
     for (int i = 0; i < n; i++){{
-        sum += f(a + (b - a) * 0.5 * (xg[i] + 1), {', '.join(name for name in param_names[1:])}) * wg[i];
+        sum += f(a + (b - a) * 0.5 * (xg[i] + 1), {', '.join(name for name in param_names)}) * wg[i];
     }}
     sum *= (b - a) * 0.5;
     return sum;

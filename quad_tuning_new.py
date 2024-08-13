@@ -10,8 +10,8 @@ import typing as tp
 import numpy as np
 import os
 import plotly.graph_objects as go
-from c_code_generation import generate_polynomial_function_c, generate_integration_rtol_default_c
-from py_code_generation import generate_polynomial_function_py, generate_integration_rtol_default_py
+from c_code_generation import generate_polynomial_function_c, generate_integration_c
+from py_code_generation import generate_polynomial_function_py, generate_integration_py
 """
 Types specifed below are not exactly the ones used. They are just placeholders to show the structure of the types used in the functions.
 They would be however if the function were not compiled with numba and simply run in python. The actual types will be mentioned in the docstrings.
@@ -28,7 +28,7 @@ def rel_error_kronrod(
     params: tp.Tuple[np.float64])->np.float64:
 
     xg, wg, xk, wk = get_gauss_kronrod_points(n)
-    _, params = params[0], params[1:]
+
     def integrate(points,weights)->np.float64:
         y = (b-a)*(points+1)/2.0 + a
         return (b-a)/2.0 * np.sum(weights*func(y, *params), axis=-1)
@@ -41,17 +41,14 @@ def compute_tuned_quad_dict(
     func: tp.Callable[[np.float64, tp.Dict[str, np.float64]], np.float64],
     a: int,
     b: int, 
-    param_prod: tp.List[tp.Tuple[np.float64]])->tp.Dict[tp.Tuple[np.float64], np.int64]:
+    param_prod: tp.List[tp.Tuple[np.float64]],
+    rtol: float)->tp.Dict[tp.Tuple[np.float64], np.int64]:
 
-
-
-    
     tuned_quad = dict() # Specify the type for this
     out = np.zeros(len(param_prod), dtype=np.int64)
     for k in range(len(param_prod)):
         print(param_prod[k])
         rel_err = 0.0
-        rtol = param_prod[k][0]
         # Find the minimum n such that the relative error is less than the tolerance
         for i, n in enumerate(n_kronrod):
             rel_err = rel_error_kronrod(n, func, a,b, param_prod[k])
@@ -78,7 +75,8 @@ def tune_quadrature(
         func: tp.Callable[[np.float64, tp.Dict[str, np.float64]], np.float64],
         a: int,
         b: int,
-        reg_params_list: tp.List[npt.NDArray]) -> tp.Dict[tp.Tuple[np.float64, ...], np.int64]:
+        reg_params_list: tp.List[npt.NDArray],
+        rtol: float) -> tp.Dict[tp.Tuple[np.float64, ...], np.int64]:
     
     """
     Tune the quadrature points for the given function and parameter space.
@@ -98,12 +96,12 @@ def tune_quadrature(
     """
     
     param_prod = list(product(*reg_params_list))
-    print([len(p) for p in reg_params_list])
     return compute_tuned_quad_dict(
         func=func, 
         a=a, 
         b=b, 
-        param_prod=param_prod)
+        param_prod=param_prod, 
+        rtol=rtol)
 
 
 def get_shift(pred, orig, threshold=.99):
@@ -126,7 +124,7 @@ def get_shift(pred, orig, threshold=.99):
     return l
 
 
-def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, threshold=.999) -> tp.Tuple[int, int, np.ndarray, np.float64]:
+def fit_dict(tuned_quad_dict: tp.Dict[tp.Tuple[np.float64, ...], int], degree, threshold=.99) -> tp.Tuple[int, int, np.ndarray, np.float64]:
     '''
     Fit a polynomial to the tuned quadrature dictionary.
     
@@ -196,7 +194,7 @@ limits = [{', '.join(map(str, limits))}]
 
 """
     py_script += generate_polynomial_function_py(len(param_names), poly_degree)
-    py_script += generate_integration_rtol_default_py(param_names)
+    py_script += generate_integration_py(param_names)
 
     with open(py_file_name, "w") as f:
         f.write(py_script)
@@ -210,6 +208,8 @@ def save_model_c_file(model_name: str, param_names, limits, poly_degree, coeffs,
 #include <stdlib.h>
 #include <math.h>
 #include "kron.h"
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#define max(a,b) ((a) > (b) ? (a) : (b))
 
 const double coeffs[] = {{{", ".join(map(str, coeffs))}}};
 const double intercept = {intercept};
@@ -218,7 +218,7 @@ const double limits[][2] = {{{", ".join(f'{{{l[0]}, {l[1]}}}' for l in limits)}}
 '''
 
     c_script += generate_polynomial_function_c(len(param_names), poly_degree)
-    c_script += generate_integration_rtol_default_c(param_names, limits)
+    c_script += generate_integration_c(param_names, limits)
     
     with open(c_file_name, "w") as f:
         f.write(c_script)
@@ -231,23 +231,18 @@ def fit_model(
         b: int,
         param_names: tp.List[str],
         reg_param_list: tp.List[np.ndarray], 
-        tol: npt.NDArray[np.float64],
+        rtol: np.float64,
         degree: tp.Optional[int] = None,
         update=False):
     
 
     file_name = f'{model_name}_model.py'
     if not os.path.exists(file_name) or update:
-        reg_param_list = [tol, *reg_param_list]
-        param_names = ['rtol', *param_names]
 
         if degree is None:
-            degree = len(reg_param_list)+1
-        
-        
-
+            degree = len(reg_param_list)+4 if len(reg_param_list) % 2 == 0 else len(reg_param_list)+3        
         limits = [(rg[0], rg[-1]) for rg in reg_param_list]
-        tuned_quad_dict = tune_quadrature(integrand, a, b, reg_param_list)
+        tuned_quad_dict = tune_quadrature(integrand, a, b, reg_param_list, rtol=rtol)
         n_params, degree, coeffs, intercept = fit_dict(tuned_quad_dict, degree)
         save_model_py_file(model_name, param_names, limits, degree, coeffs, intercept)
         save_model_c_file(model_name, param_names, limits, degree, coeffs, intercept)

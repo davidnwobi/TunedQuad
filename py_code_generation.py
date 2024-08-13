@@ -61,8 +61,6 @@ def integrate(f: tp.Callable[[float, tp.Tuple[float, ...]], float], a: float, b:
 
     xg, wg = get_gauss_points(n)
 
-    if len(params) > 1:
-        params = params[1:]
     y = (b-a)*(xg+1)/2 + a
     return (b-a)/2 * np.sum(wg*f(y, *params))
     '''
